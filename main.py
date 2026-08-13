@@ -689,6 +689,38 @@ def _save_reused_market_review_report(
         logger.warning("复用大盘上下文保存大盘复盘报告失败: %s", exc)
 
 
+def _is_hk_analysis_result(result: Any) -> bool:
+    """Return whether an analysis result belongs to the Hong Kong market."""
+    code = str(getattr(result, "code", "") or "").strip().lower()
+    return code.startswith("hk") or code.endswith(".hk")
+
+
+def _split_cn_hk_market_review(report: str) -> tuple[str, str]:
+    """Split the merged market review while keeping a clear fallback for missing data."""
+    text = str(report or "").strip()
+    hk_heading = "# 港股大盘复盘"
+    hk_start = text.find(hk_heading)
+    if hk_start < 0:
+        return text, ""
+    return text[:hk_start].strip(), text[hk_start:].strip()
+
+
+def _build_cn_hk_daily_report(config: Config, notifier: Any, results: List[Any], market_report: str) -> str:
+    """Render a concise, market-separated daily report with explicit data fallbacks."""
+    cn_results = [item for item in results if not _is_hk_analysis_result(item)]
+    hk_results = [item for item in results if _is_hk_analysis_result(item)]
+    cn_market, hk_market = _split_cn_hk_market_review(market_report)
+    report_type = getattr(config, "report_type", "simple")
+    sections: List[str] = []
+    cn_parts = [cn_market or "中国A股市场总览数据暂不可用；以下仅提供个股分析。"]
+    cn_parts.append(notifier.generate_aggregate_report(cn_results, report_type) if cn_results else "本轮未获取到A股个股分析结果。")
+    sections.append("# 📊 A股报告\n\n" + "\n\n".join(cn_parts))
+    hk_parts = [hk_market or "港股市场总览数据暂不可用；以下仅提供个股分析。"]
+    hk_parts.append(notifier.generate_aggregate_report(hk_results, report_type) if hk_results else "本轮未获取到港股个股分析结果。")
+    sections.append("# 🌐 港股报告\n\n" + "\n\n".join(hk_parts))
+    return "\n\n---\n\n".join(sections)
+
+
 def _run_auto_backtest(config: Config) -> None:
     """Run the independently configured auto-backtest without failing analysis."""
 
@@ -990,24 +1022,19 @@ def run_full_analysis(
             elif can_reuse_market_context:
                 market_report = market_context_full_report or market_context_summary
 
-        # Issue #190: 合并推送（个股+大盘复盘）
+        # 合并推送：按市场分区，先市场总览，再对应的个股分析。
         if merge_notification and (results or market_report) and not args.no_notify:
-            parts = []
-            if market_report:
-                parts.append(f"# 📈 大盘复盘\n\n{market_report}")
-            if results:
-                dashboard_content = pipeline.notifier.generate_aggregate_report(
-                    results,
-                    getattr(config, 'report_type', 'simple'),
-                )
-                parts.append(f"# 🚀 个股决策仪表盘\n\n{dashboard_content}")
-            if parts:
-                combined_content = "\n\n---\n\n".join(parts)
-                if pipeline.notifier.is_available():
-                    if pipeline.notifier.send(combined_content, email_send_to_all=True, route_type="report"):
-                        logger.info("已合并推送（个股+大盘复盘）")
-                    else:
-                        logger.warning("合并推送失败")
+            combined_content = _build_cn_hk_daily_report(
+                config,
+                pipeline.notifier,
+                results,
+                market_report,
+            )
+            if pipeline.notifier.is_available():
+                if pipeline.notifier.send(combined_content, email_send_to_all=True, route_type="report"):
+                    logger.info("已按A股/港股分区合并推送日报")
+                else:
+                    logger.warning("A股/港股分区日报推送失败")
 
         # 输出摘要
         if results:
