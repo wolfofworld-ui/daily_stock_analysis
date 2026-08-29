@@ -453,19 +453,19 @@ jobs:
 
           # 按交易市场拆分：同一份 STOCK_LIST 无需改动，A 股和港股分别生成独立报告。
           MARKET_STOCK_LIST="$(python - <<'PY'
-import os
-from src.services.stock_list_parser import parse_stock_list
+          import os
+          from src.services.stock_list_parser import parse_stock_list
 
-market = os.environ["REPORT_MARKET_LABEL"]
-target_exchange = "HK" if market == "港股" else None
-targets = parse_stock_list(os.environ.get("STOCK_LIST", ""))
-selected = [
-    target.raw_input
-    for target in targets
-    if (target.exchange == "HK") == (target_exchange == "HK")
-]
-print(",".join(selected))
-PY
+          market = os.environ["REPORT_MARKET_LABEL"]
+          target_exchange = "HK" if market == "港股" else None
+          targets = parse_stock_list(os.environ.get("STOCK_LIST", ""))
+          selected = [
+              target.raw_input
+              for target in targets
+              if (target.exchange == "HK") == (target_exchange == "HK")
+          ]
+          print(",".join(selected))
+          PY
           )"
           if [ -z "$MARKET_STOCK_LIST" ]; then
             echo "ℹ️ $REPORT_MARKET_LABEL 未配置股票，本任务跳过。"
