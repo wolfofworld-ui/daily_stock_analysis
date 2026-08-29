@@ -30,6 +30,15 @@ concurrency:
 
 jobs:
   analyze:
+    name: ${{ matrix.label }}分析
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - market: cn
+            label: A股
+          - market: hk
+            label: 港股
     runs-on: ubuntu-latest
     # 兼容误将 STOCK_LIST 配到同名 Environment variables 的场景；
     # 推荐位置仍是 Settings -> Secrets and variables -> Actions -> Repository variables。
@@ -414,18 +423,22 @@ jobs:
           MARKET_REVIEW_ENABLED: ${{ vars.MARKET_REVIEW_ENABLED || secrets.MARKET_REVIEW_ENABLED || 'true' }}
           ANALYSIS_DELAY: ${{ vars.ANALYSIS_DELAY || secrets.ANALYSIS_DELAY || '0' }}
           TRADING_DAY_CHECK_ENABLED: ${{ vars.TRADING_DAY_CHECK_ENABLED || secrets.TRADING_DAY_CHECK_ENABLED || 'true' }}
+          # 日报轻量模式：保留最新消息和风险排查，跳过耗时且重复率高的研报/行业/业绩检索。
+          STOCK_INTEL_MAX_SEARCHES: '3'
+          NEWS_STRATEGY_PROFILE: 'ultra_short'
           
           # ==========================================
           # 系统配置
           # ==========================================
           LOG_LEVEL: INFO
-          MAX_WORKERS: ${{ vars.MAX_WORKERS || secrets.MAX_WORKERS || '1' }}
+          MAX_WORKERS: ${{ vars.MAX_WORKERS || secrets.MAX_WORKERS || '2' }}
           # 筹码分布：默认 false（云端接口不稳定）；需启用时在 Settings → Variables 添加 ENABLE_CHIP_DISTRIBUTION=true
           ENABLE_CHIP_DISTRIBUTION: ${{ vars.ENABLE_CHIP_DISTRIBUTION || secrets.ENABLE_CHIP_DISTRIBUTION || 'false' }}
           # 实时行情数据源优先级（腾讯有量比且稳定，推荐首选）
           # 可选值: tencent, akshare_sina, efinance, akshare_em, tickflow, tushare
           # 如果有 TickFlow 或 Tushare Pro，可按权限把 tickflow / tushare 放在更靠前位置
           REALTIME_SOURCE_PRIORITY: ${{ vars.REALTIME_SOURCE_PRIORITY || 'tencent,akshare_sina,efinance,akshare_em' }}
+          REPORT_MARKET_LABEL: ${{ matrix.label }}
           
         run: |
           # 解析自选股配置：
@@ -437,6 +450,28 @@ jobs:
           elif [ -z "${STOCK_LIST:-}" ]; then
             export STOCK_LIST="600519"
           fi
+
+          # 按交易市场拆分：同一份 STOCK_LIST 无需改动，A 股和港股分别生成独立报告。
+          MARKET_STOCK_LIST="$(python - <<'PY'
+import os
+from src.services.stock_list_parser import parse_stock_list
+
+market = os.environ["REPORT_MARKET_LABEL"]
+target_exchange = "HK" if market == "港股" else None
+targets = parse_stock_list(os.environ.get("STOCK_LIST", ""))
+selected = [
+    target.raw_input
+    for target in targets
+    if (target.exchange == "HK") == (target_exchange == "HK")
+]
+print(",".join(selected))
+PY
+          )"
+          if [ -z "$MARKET_STOCK_LIST" ]; then
+            echo "ℹ️ $REPORT_MARKET_LABEL 未配置股票，本任务跳过。"
+            exit 0
+          fi
+          export STOCK_LIST="$MARKET_STOCK_LIST"
 
           # 处理 LITELLM YAML 配置文件
           if [ -n "$LITELLM_CONFIG_YAML" ] && [ -n "$LITELLM_CONFIG" ]; then
@@ -456,7 +491,7 @@ jobs:
           echo "=========================================="
           echo "⏰ 时间: $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')"
           echo "🎯 运行模式: $MODE"
-          echo "📊 自选股: $STOCK_LIST"
+          echo "📊 $REPORT_MARKET_LABEL 自选股: $STOCK_LIST"
           echo "📝 报告类型: $REPORT_TYPE"
           echo ""
           echo "=========================================="
@@ -530,9 +565,9 @@ jobs:
           if [ "$MODE" = "market-only" ]; then
             python main.py --market-review $FORCE_RUN_ARG
           elif [ "$MODE" = "stocks-only" ]; then
-            python main.py --no-market-review $FORCE_RUN_ARG
+            python main.py --stocks "$STOCK_LIST" --no-market-review $FORCE_RUN_ARG
           else
-            python main.py $FORCE_RUN_ARG
+            python main.py --stocks "$STOCK_LIST" --no-market-review $FORCE_RUN_ARG
           fi
       
       - name: 上传分析报告
