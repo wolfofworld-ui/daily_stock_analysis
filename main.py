@@ -1035,6 +1035,16 @@ def run_full_analysis(
                     logger.info("已按A股/港股分区合并推送日报")
                 else:
                     logger.warning("A股/港股分区日报推送失败")
+        elif results and not args.no_notify and pipeline.notifier.is_available():
+            market_label = os.getenv("REPORT_MARKET_LABEL", "").strip()
+            title = f"# 📊 {market_label}个股分析" if market_label else "# 📊 个股分析"
+            content = pipeline.notifier.generate_aggregate_report(
+                results, getattr(config, "report_type", "simple")
+            )
+            if pipeline.notifier.send(f"{title}\n\n{content}", email_send_to_all=True, route_type="report"):
+                logger.info("已发送%s独立个股日报", market_label or "")
+            else:
+                logger.warning("%s独立个股日报推送失败", market_label or "")
 
         # 输出摘要
         if results:

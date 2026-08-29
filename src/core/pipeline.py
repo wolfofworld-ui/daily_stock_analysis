@@ -616,7 +616,7 @@ class StockAnalysisPipeline:
                 intel_results = self.search_service.search_comprehensive_intel(
                     stock_code=code,
                     stock_name=stock_name,
-                    max_searches=5
+                    max_searches=max(1, int(getattr(self.config, "stock_intel_max_searches", 3) or 3))
                 )
 
                 # 格式化情报报告

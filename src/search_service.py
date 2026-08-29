@@ -4393,13 +4393,6 @@ class SearchService:
                     'strict_freshness': True,
                 },
                 {
-                    'name': 'market_analysis',
-                    'query': f"{effective_name} analyst rating target price report",
-                    'desc': '机构分析',
-                    'tavily_topic': None,
-                    'strict_freshness': False,
-                },
-                {
                     'name': 'risk_check',
                     'query': (
                         f"{effective_name} {stock_code} index performance outlook tracking error"
@@ -4408,6 +4401,13 @@ class SearchService:
                     'desc': '风险排查',
                     'tavily_topic': None if is_index_etf else 'news',
                     'strict_freshness': not is_index_etf,
+                },
+                {
+                    'name': 'market_analysis',
+                    'query': f"{effective_name} analyst rating target price report",
+                    'desc': '机构分析',
+                    'tavily_topic': None,
+                    'strict_freshness': False,
                 },
                 {
                     'name': 'earnings',
@@ -4440,13 +4440,6 @@ class SearchService:
                     'strict_freshness': True,
                 },
                 {
-                    'name': 'market_analysis',
-                    'query': f"{stock_name} 研报 目标价 评级 深度分析",
-                    'desc': '机构分析',
-                    'tavily_topic': None,
-                    'strict_freshness': False,
-                },
-                {
                     'name': 'risk_check',
                     'query': (
                         f"{stock_name} 指数走势 跟踪误差 净值 表现"
@@ -4465,6 +4458,13 @@ class SearchService:
                     'desc': '公司公告',
                     'tavily_topic': 'news',
                     'strict_freshness': True,
+                },
+                {
+                    'name': 'market_analysis',
+                    'query': f"{stock_name} 研报 目标价 评级 深度分析",
+                    'desc': '机构分析',
+                    'tavily_topic': None,
+                    'strict_freshness': False,
                 },
                 {
                     'name': 'earnings',
