@@ -904,7 +904,12 @@ def run_full_analysis(
             results = pipeline.run(
                 stock_codes=stock_codes,
                 dry_run=args.dry_run,
-                send_notification=not args.no_notify,
+                # main owns the final aggregate report (including the market label).
+                # Keep pipeline notifications for single-stock and merge modes only.
+                send_notification=(
+                    not args.no_notify
+                    and (config.single_stock_notify or merge_notification)
+                ),
                 merge_notification=merge_notification,
                 current_time=analysis_reference_time,
             )
@@ -1035,7 +1040,12 @@ def run_full_analysis(
                     logger.info("已按A股/港股分区合并推送日报")
                 else:
                     logger.warning("A股/港股分区日报推送失败")
-        elif results and not args.no_notify and pipeline.notifier.is_available():
+        elif (
+            results
+            and not args.no_notify
+            and not config.single_stock_notify
+            and pipeline.notifier.is_available()
+        ):
             market_label = os.getenv("REPORT_MARKET_LABEL", "").strip()
             title = f"# 📊 {market_label}个股分析" if market_label else "# 📊 个股分析"
             content = pipeline.notifier.generate_aggregate_report(

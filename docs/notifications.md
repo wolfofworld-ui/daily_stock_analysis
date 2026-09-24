@@ -332,3 +332,7 @@ Secret 适合 token、password、webhook URL 等敏感项；Variable 适合 `WEC
 - GitHub Actions：清空或删除对应 Secret / Variable；未映射的 key 不会进入 workflow 运行进程。
 - Desktop：使用配置备份导入旧 `.env`，或在设置页清空对应渠道配置并保存。
 - 版本回退：P6/P7 新增的 `NTFY_*`、`GOTIFY_*`、路由和降噪 key 在旧版本中会被忽略；若要避免误导，应同时从 `.env` 或 Actions 配置中移除。
+
+## CLI 日报发送职责
+
+`main.py` 负责普通个股汇总发送，并通过 `REPORT_MARKET_LABEL` 保留 A股/港股标题；此模式下 pipeline 仅分析并保存本地报告。`SINGLE_STOCK_NOTIFY=true`（或 `--single-notify`）仍由 pipeline 逐股发送，main 不再追加汇总。启用 `MERGE_EMAIL_NOTIFICATION` 且执行大盘复盘时，仍由 main 合并个股与大盘后发送。`--no-notify` 禁用上述通知，但不影响本地报告保存。直接调用 pipeline 的默认通知行为不变。
