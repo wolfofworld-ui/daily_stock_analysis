@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- [修复] CLI 普通个股日报仅由 main 发送一次，保留 A股/港股标题；逐股通知不再追加汇总，合并通知、禁用通知和本地报告保存保持原有语义。
+
 <!-- 新条目格式：- [类型] 描述（类型取值：新功能/改进/修复/文档/测试/chore）-->
 <!-- 每条独立一行追加到本段末尾，无需分类标题，合并时冲突最小 -->
 - [改进] AIHubMix 注册与引流链接统一使用 inferera.com，改善中国大陆网络直连体验。
