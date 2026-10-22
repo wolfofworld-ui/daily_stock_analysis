@@ -193,7 +193,7 @@ To get started quickly, you need at minimum:
 
 ### 5. Done!
 
-Default schedule: Every weekday at **18:00 (Beijing Time)** automatic execution.
+Default GitHub Actions schedule: Every weekday at **19:07 (Beijing Time, UTC 11:07)**. The built-in local scheduler has a separate default.
 
 ---
 
@@ -679,8 +679,14 @@ Edit `.github/workflows/00-daily-analysis.yml`:
 ```yaml
 schedule:
   # UTC time, Beijing time = UTC + 8
-  - cron: '0 10 * * 1-5'   # Monday to Friday 18:00 (Beijing Time)
+  - cron: '7 11 * * 1-5'   # Monday to Friday 19:07 (Beijing Time)
 ```
+
+GitHub schedules use the default branch. This schedule avoids the start of the hour, when GitHub documents higher load, but it cannot guarantee delivery. A PR changing the cron only takes effect after it is merged into the default branch.
+
+If a report is missing, inspect this workflow’s runs: no run means the trigger was not delivered; a failed or skipped run requires checking its jobs and logs. Confirm there is no run for the reporting day, including queued or running work, before manually starting `full` with `force_run=false`. A failed run may already have sent some emails; do not blindly rerun it. Disabling and re-enabling the workflow refreshes its enabled state, but is not proof that the scheduler has recovered.
+
+An independent watchdog must run outside GitHub Actions (for example on an always-on host), read current run history with the correct reporting-day boundary, and alert when a run is missing or failed. Adding a second GitHub cron is not an independent watchdog. Automatic recovery also needs a repository-scoped credential with Actions write access and a durable per-day guard that covers both the original schedule and recovery dispatches; workflow concurrency alone only serializes runs and does not prevent duplicate emails. Until these prerequisites are configured and verified, use monitoring alerts and inspect the run history before a manual recovery. See [GitHub trigger troubleshooting](https://docs.github.com/en/actions/how-tos/troubleshoot-workflows).
 
 Common time reference:
 
