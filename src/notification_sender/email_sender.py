@@ -198,20 +198,36 @@ class EmailSender:
                 use_ssl = True
                 logger.warning(f"未知邮箱类型 {domain}，尝试通用配置: {smtp_server}:{smtp_port}")
             
-            # 根据配置选择连接方式
-            if use_ssl:
-                # SSL 连接（端口 465）
-                server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=timeout_seconds or 30)
-            else:
-                # TLS 连接（端口 587）
-                server = smtplib.SMTP(smtp_server, smtp_port, timeout=timeout_seconds or 30)
-                server.starttls()
-            
-            server.login(sender, password)
-            server.send_message(msg)
-            
-            logger.info(f"邮件发送成功，收件人: {receivers}")
-            return True
+            # Gmail may close one SMTP route before the TLS handshake completes.
+            # Prefer the configured endpoint, then try the other supported Gmail route.
+            endpoints = [(smtp_server, smtp_port, use_ssl)]
+            if domain == "gmail.com":
+                alternate = ("smtp.gmail.com", 465, True) if smtp_port != 465 else ("smtp.gmail.com", 587, False)
+                endpoints.append(alternate)
+
+            last_connection_error = None
+            for endpoint_server, endpoint_port, endpoint_ssl in endpoints:
+                server = None
+                try:
+                    logger.info("连接 SMTP: %s:%s (%s)", endpoint_server, endpoint_port, "SSL" if endpoint_ssl else "STARTTLS")
+                    if endpoint_ssl:
+                        server = smtplib.SMTP_SSL(endpoint_server, endpoint_port, timeout=timeout_seconds or 30)
+                    else:
+                        server = smtplib.SMTP(endpoint_server, endpoint_port, timeout=timeout_seconds or 30)
+                        server.starttls()
+                    server.login(sender, password)
+                    server.send_message(msg)
+                    logger.info(f"邮件发送成功，收件人: {receivers}")
+                    return True
+                except (OSError, smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected) as e:
+                    last_connection_error = e
+                    logger.warning("SMTP %s:%s 连接失败，将尝试备用线路: %s", endpoint_server, endpoint_port, e)
+                finally:
+                    self._close_server(server)
+
+            if last_connection_error is not None:
+                raise last_connection_error
+            return False
             
         except smtplib.SMTPAuthenticationError:
             logger.error("邮件发送失败：认证错误，请检查邮箱和授权码是否正确")
